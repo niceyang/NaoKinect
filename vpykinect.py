@@ -3,14 +3,7 @@ import pykinect
 from pykinect import nui
 from pykinect.nui import JointId
 import math
-
-class Vector(object):
-    """Vector functions for medium value for angle calc between joints"""
-    def __init__(self,x,y,z):
-        super(Vector, self).__init__()
-        self.x =x
-        self.y =y
-        self.z =z
+import numpy as np
 
 
 class Skeleton:
@@ -24,9 +17,7 @@ class Skeleton:
         self.joints = [sphere(frame=f, radius=0.08, color=color.yellow)
                        for i in range(20)]
         #Head
-        self.joints[8].radius = 0.125
-        self.joints[9].radius = 0.125
-        self.joints[10  ].radius = 0.125
+        self.joints[3].radius = 0.125
         self.bones = [cylinder(frame=f, radius=0.05, color=color.yellow)
                       for bone in _bone_ids]
 
@@ -76,93 +67,126 @@ def draw_sensor(f):
          align='center', height=0.0127, depth=0.003)
     return f
 
-def line_angle(x1,y1,x2,y2):
-    up = math.fabs(x1*y1+x2*y2)/1.0
-    down = math.sqrt(x1*x1+y1*y1)*math.sqrt(x2*x2+y2*y2)
-    value = up/down
-    plus = 0
-    minus = 0
-    while value>1:
-        value = value-1
-        plus+=1 
-    while value<-1:
-        value = value+1
-        minus+=1
-    result = math.degrees(math.acos(value))
-    if plus>0:
-        return result+90*plus
-    if minus>0:
-        return (result+90*minus)*-1
-    return result
-    # return up/down
-
-def calcVector(jointSart,jointEnd):
-    vector = Vector(jointEnd.x - jointSart.x,jointEnd.y - jointSart.y,jointEnd.z - jointSart.z)
-    return vector
-
 
 def analyse_frame(skeleton,raised):
     if skeleton.frame.visible:
         
-        # Skeleton info
-        head = skeleton.joints[3]
-        neck = skeleton.joints[2]
-        spine_shoulder = skeleton.joints[2]
-        spine_mid = skeleton.joints[1]
+        # Original Skeleton info
+        ojoints = []
+        for index in range(20):
+            ojoints.append(np.array([skeleton.joints[index].x, skeleton.joints[index].y, skeleton.joints[index].z]))
+       
+       
+        # New axis space
+        x = (ojoints[12] - ojoints[16]) / (np.linalg.norm(ojoints[12] - ojoints[16]))
+        z = np.cross((ojoints[12] - ojoints[16]), (ojoints[16] - ojoints[2])) / np.linalg.norm(np.cross((ojoints[12] - ojoints[16]), (ojoints[16] - ojoints[2])))
+        y = np.cross(x,z)
+        # Transfer matrix
+        A = np.array([x,y,z])
 
-        right_shoulder = skeleton.joints[8]
-        right_elbow = skeleton.joints[9]
-        right_wrist = skeleton.joints[10]
-        left_shoulder = skeleton.joints[4]
-        left_elbow = skeleton.joints[5]
-        left_wrist = skeleton.joints[6]
+        # Coordinate transform
+        joints = []
+        for ojoint in ojoints:
+            # joints.append(A.dot(ojoint))
+            joints.append(ojoint)
 
-        left_hip = skeleton.joints[12]
-        right_hip = skeleton.joints[16]
-        left_knee = skeleton.joints[13]
-        right_knee = skeleton.joints[17]
+        # New joints
+        # Head
+        head =  joints[3]
+        neck =  joints[2]
+        # Right
+        right_shoulder = joints[8]
+        right_elbow =  joints[9]
+        right_wrist =  joints[10]
+        # Left 
+        left_shoulder =joints[4]
+        left_elbow =  joints[5]
+        left_wrist =  joints[6]
+        # Legs
+        left_hip =  joints[12] 
+        right_hip =  joints[16]
+        left_knee =  joints[13]
+        right_knee = joints[17] 
 
-        # Vector Info
-        spine_upV = calcVector(spine_mid,spine_shoulder)
-        spine_downV = calcVector(spine_shoulder,spine_mid)
-        headV = calcVector(spine_shoulder,head)
+    ## Left arm
+        # Bonds
+        # 45
+        uparmLeft = left_elbow - left_shoulder 
+        # 56
+        forearmLeft = left_wrist - left_elbow
 
-        elbow_leftV = calcVector(left_shoulder,left_elbow)
-        wrist_leftV = calcVector(left_elbow,left_wrist)
-        leg_leftV = calcVector(left_hip,left_knee)
+        pi = math.pi
+        ## Shoulder angle
+        shoulderRoll_Left = -(pi/2 - math.acos(np.cross(y,z).dot(uparmLeft)/(np.linalg.norm(np.cross(y,z)) * np.linalg.norm(uparmLeft))))
+        # around 40 degree different
+        shoulderPich_Left = math.atan(uparmLeft[2]/uparmLeft[0])
+        # shoulderPich_Left = shoulderPich_Left - math.radians(40)
+        # print math.degrees(shoulderRoll_Left)
+        # print math.degrees(shoulderPich_Left)
 
-        elbow_rightV = calcVector(right_shoulder,right_elbow)
-        wrist_rightV = calcVector(right_elbow,right_wrist)
-        leg_rightV = calcVector(right_hip,right_knee)
+        ## Elbow angle
+        b1=np.array([[math.cos(shoulderRoll_Left), -math.sin(shoulderRoll_Left), 0],
+                    [math.sin(shoulderRoll_Left), math.cos(shoulderRoll_Left), 0],
+                    [0, 0, 1]])
+        b2=np.array([[math.cos(shoulderPich_Left), 0, math.sin(shoulderPich_Left)],
+                    [0, 1, 0],
+                    [-math.sin(shoulderPich_Left), 0, math.cos(shoulderPich_Left)]])
+        b = b1.dot(b2).dot(z)
+
+        a_left = np.cross(uparmLeft,forearmLeft)/np.linalg.norm(np.cross(uparmLeft,forearmLeft))
+
+        # around +40 degree different
+        elbowYaw_Left = (pi/2 - math.acos(b.dot(a_left)/(np.linalg.norm(b)*np.linalg.norm(a_left))))
+        elbowRoll_Left = -math.acos(uparmLeft.dot(forearmLeft)/(np.linalg.norm(uparmLeft) * np.linalg.norm(forearmLeft)))
+        # print math.degrees(elbowYaw_Left)
+        # print math.degrees(elbowRoll_Left)
+
+    ## Right arm
+        # Bonds
+        # 89
+        uparmRight = right_elbow - right_shoulder 
+        # 90
+        forearmRight = right_wrist - right_elbow
+
+        ## Shoulder angle
+        shoulderRoll_Right = -(pi/2 - math.acos(np.cross(y,z).dot(uparmRight)/(np.linalg.norm(np.cross(y,z)) * np.linalg.norm(uparmRight))))
+        # around 40 degree different
+        shoulderPich_Right = -math.atan(uparmRight[2]/uparmRight[0])
+        # print math.degrees(shoulderRoll_Right)
+        # print math.degrees(shoulderPich_Right)
+
+        ## Elbow angle
+        b1=np.array([[math.cos(shoulderRoll_Right), -math.sin(shoulderRoll_Right), 0],
+                    [math.sin(shoulderRoll_Right), math.cos(shoulderRoll_Right), 0],
+                    [0, 0, 1]])
+        b2=np.array([[math.cos(shoulderPich_Right), 0, math.sin(shoulderPich_Right)],
+                    [0, 1, 0],
+                    [-math.sin(shoulderPich_Right), 0, math.cos(shoulderPich_Right)]])
+        b = b1.dot(b2).dot(z)
+
+        a_right = np.cross(uparmRight,forearmRight)/np.linalg.norm(np.cross(uparmRight,forearmRight))
+
+        # around +40 degree different
+        elbowYaw_Right = (pi/2 - math.acos(b.dot(a_right)/(np.linalg.norm(b)*np.linalg.norm(a_right))))
+        elbowRoll_Right = math.acos(uparmRight.dot(forearmRight)/(np.linalg.norm(uparmRight) * np.linalg.norm(forearmRight)))
+        # print math.degrees(elbowYaw_Right)
+        # print math.degrees(elbowRoll_Right)
+
+    ## Head
+        neckHead = head - neck
+        neckAngle = (pi/2 - math.acos(np.cross(x,y).dot(neckHead)/(np.linalg.norm(np.cross(x,y)) * np.linalg.norm(neckHead))))
+        # print math.degrees(neckAngle)  
+
+    ## Legs
+        leg_Left = left_knee - left_hip
+        leg_Right = right_knee - right_hip
+        
+        legRoll_Left = -(pi/2 - math.acos(np.cross(x,y).dot(leg_Left)/(np.linalg.norm(np.cross(x,y)) * np.linalg.norm(leg_Left))))
+        legRoll_Right = -(pi/2 - math.acos(np.cross(x,y).dot(leg_Right)/(np.linalg.norm(np.cross(x,y)) * np.linalg.norm(leg_Right))))
+        # print math.degrees(legRoll_Left)  
+        # print math.degrees(legRoll_Right)  
 
 
-        # Angle Info
-        # HeadYew = line_angle(head.x,head.y,neck.x,neck.y)
-        HeadPitch = line_angle(spine_upV.y,spine_upV.z,headV.y,headV.z)
-
-        LshoulderRoll = line_angle(spine_downV.y,spine_downV.z,elbow_leftV.y,elbow_leftV.z)
-        LshoulderYaw = line_angle(spine_downV.x,spine_downV.y,elbow_leftV.x,elbow_leftV.y)
-
-        RshoulderRoll = line_angle(spine_downV.y,spine_downV.z,elbow_rightV.y,elbow_rightV.z)
-        RshoulderYaw = line_angle(spine_downV.x,spine_downV.y,elbow_rightV.x,elbow_rightV.y)
-
-        LelbowRoll = line_angle(wrist_leftV.y,wrist_leftV.z,elbow_leftV.y,elbow_leftV.z)
-        LelbowYaw = line_angle(wrist_leftV.x,wrist_leftV.y,elbow_leftV.x,elbow_leftV.y)
-    
-        RelbowRoll = line_angle(wrist_rightV.y,wrist_rightV.z,elbow_rightV.y,elbow_rightV.z)
-        RelbowYaw = line_angle(wrist_rightV.x,wrist_rightV.y,elbow_rightV.x,elbow_rightV.y)
-
-        print '---start---'
-        # print 'HeadPitch:%s' % HeadPitch
-        # print 'LshoulderRoll:%s' % LshoulderRoll
-        # print 'LshoulderYaw:%s' % LshoulderYaw
-        # print 'RshoulderRoll:%s' % RshoulderRoll
-        # print 'RshoulderYaw:%s' % RshoulderYaw
-        print 'LelbowRoll:%s' % LelbowRoll
-        print 'LelbowYaw:%s' % LelbowYaw
-        # print 'RelbowRoll:%s' % RelbowRoll
-        # print 'RelbowYaw:%s' % RelbowYaw
-        print '---end---'
 
         # if right_wrist.y > right_shoulder.y and not raised:
         #     raised = True
@@ -187,7 +211,7 @@ if __name__ == '__main__':
     raised = False
     while True:
         count+=1
-        if count > 30000:
+        if count > 500:
             _kinect.close()
             exit()
         # print count
