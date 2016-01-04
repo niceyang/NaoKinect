@@ -68,8 +68,7 @@ def draw_sensor(f):
          align='center', height=0.0127, depth=0.003)
     return f
 
-
-def analyse_frame(skeleton,raised):
+def analyse_frame(skeleton,raised,motionProxy):
     if skeleton.frame.visible:
         # results
         angles = {}
@@ -154,6 +153,7 @@ def analyse_frame(skeleton,raised):
         RShoulderRoll = -(pi/2 - math.acos(np.cross(y,z).dot(uparmRight)/(np.linalg.norm(np.cross(y,z)) * np.linalg.norm(uparmRight))))
         # around 40 degree different
         RShoulderPitch = -math.atan(uparmRight[2]/uparmRight[0])
+        # print RShoulderRoll
         # print math.degrees(RShoulderRoll)
         # print math.degrees(RShoulderPitch)
 
@@ -185,7 +185,7 @@ def analyse_frame(skeleton,raised):
         
         LHipPitch = -(pi/2 - math.acos(np.cross(x,y).dot(leg_Left)/(np.linalg.norm(np.cross(x,y)) * np.linalg.norm(leg_Left))))
         RHipPitch = -(pi/2 - math.acos(np.cross(x,y).dot(leg_Right)/(np.linalg.norm(np.cross(x,y)) * np.linalg.norm(leg_Right))))
-        print math.degrees(LHipPitch)  
+        print "LPitch:", LHipPitch
         # print math.degrees(RHipPitch)  
 
     ## Filters
@@ -194,6 +194,7 @@ def analyse_frame(skeleton,raised):
             LShoulderRoll = 1.3265
         elif LShoulderRoll < -0.3142:
             LShoulderRoll = -0.3142
+        # print "Filer:L",LShoulderRoll
 
         if LShoulderPitch > 2.0857:
             LShoulderPitch = 2.0857
@@ -212,9 +213,10 @@ def analyse_frame(skeleton,raised):
 
     # Right arm
         if RShoulderRoll > 0.3142:
-            RShoulderRoll = 0.3142
+            RShoulderRoll = 0.3
         elif RShoulderRoll < -1.3265:
-            RShoulderRoll = -1.3265
+            RShoulderRoll = -1.3
+        # print "Filer:R",RShoulderRoll
 
         if RShoulderPitch > 2.0857:
             RShoulderPitch = 2.0857
@@ -248,7 +250,21 @@ def analyse_frame(skeleton,raised):
         elif HeadPitch < -0.6720:
             HeadPitch = -0.6720
 
+    # Update Nao
+        names  = ["HeadPitch","LShoulderPitch","LShoulderRoll","LElbowYaw","LElbowRoll","RShoulderRoll","RShoulderPitch","RElbowYaw","RElbowRoll"]
+        angles  =[HeadPitch,LShoulderPitch,LShoulderRoll,LElbowYaw,LElbowRoll,RShoulderRoll,RShoulderPitch,RElbowYaw,RElbowRoll] #,LHipPitch,RHipPitch
+        fractionMaxSpeed  = 1
+        motionProxy.setAngles(names, angles, fractionMaxSpeed)
 
+        LegNames  = ["LHipPitch","LKneePitch","LAnklePitch","RHipPitch","RKneePitch","RAnklePitch"]
+        LegFractionMaxSpeed  = 0.1
+        if(LHipPitch>0):
+            LegAngles  = [-0.45187273621559143, 0.7013046145439148, -0.35190537571907043,-0.45187273621559143, 0.7013046145439148, -0.35190537571907043]
+        elif(LHipPitch>-0.15):
+            LegAngles  = [-0.25, 1, -0.724,-0.25, 1, -0.724]
+        elif(LHipPitch<=0.15):
+            LegAngles  = [-0.67, 1.65, -0.724,-0.67, 1.65, -0.724]
+        motionProxy.setAngles(LegNames, LegAngles, LegFractionMaxSpeed)
 
         # angle['LShoulderRoll'] = LShoulderRoll
 
@@ -268,19 +284,46 @@ _kinect = nui.Runtime()
 _kinect.skeleton_engine.enabled = True
 _kinect.camera.elevation_angle = 15
 
+def naoInit(postureProxy, motionProxy):
+    motionProxy.setStiffnesses("Body", 1.0)
+    motionProxy.setStiffnesses("Head", 1.0)
+    motionProxy.setMotionConfig([["ENABLE_FOOT_CONTACT_PROTECTION", True]])
+    postureProxy.goToPosture("StandInit", 0.5)
+
+    motionProxy.wbEnable(True)
+
+    # Example showing how to Constraint Balance Motion.
+    isEnable   = True
+    supportLeg = "Legs"
+    motionProxy.wbEnableBalanceConstraint(isEnable, supportLeg)
+
+def naoRest(postureProxy, motionProxy):
+    postureProxy.goToPosture("Crouch", 0.2)
+    motionProxy.setStiffnesses("Body", 0.0)
+    motionProxy.setStiffnesses("Head", 0.0)
+
 if __name__ == '__main__':
+    # Initialize nao proxy
+    robotIp = "127.0.0.1"
+    motionProxy = ALProxy("ALMotion", robotIp, 9559)
+    postureProxy = ALProxy("ALRobotPosture", robotIp, 9559)
+
     draw_sensor(frame())
     skeleton = Skeleton(frame(visible=False))
     count = 0
     raised = False
+    naoInit(postureProxy, motionProxy)
+
+    # Loop
     while True:
         count+=1
         if count > 500:
             _kinect.close()
+            naoRest(postureProxy, motionProxy)
             exit()
         # print count
 
-        rate(30)
+        rate(20)
         skeleton.frame.visible = skeleton.update()
-        analyse_frame(skeleton,raised)
+        analyse_frame(skeleton,raised,motionProxy)
         
