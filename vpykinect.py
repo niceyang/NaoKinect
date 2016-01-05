@@ -253,20 +253,20 @@ def analyse_frame(skeleton,raised,motionProxy):
     # Update Nao
         names  = ["HeadPitch","LShoulderPitch","LShoulderRoll","LElbowYaw","LElbowRoll","RShoulderRoll","RShoulderPitch","RElbowYaw","RElbowRoll"]
         angles  =[HeadPitch,LShoulderPitch,LShoulderRoll,LElbowYaw,LElbowRoll,RShoulderRoll,RShoulderPitch,RElbowYaw,RElbowRoll] #,LHipPitch,RHipPitch
-        fractionMaxSpeed  = 1
+        fractionMaxSpeed  = 0.8
         motionProxy.setAngles(names, angles, fractionMaxSpeed)
 
         LegNames  = ["LHipPitch","LKneePitch","LAnklePitch","RHipPitch","RKneePitch","RAnklePitch"]
         LegFractionMaxSpeed  = 0.1
         if(LHipPitch>0):
-            LegAngles  = [-0.45187273621559143, 0.7013046145439148, -0.35190537571907043,-0.45187273621559143, 0.7013046145439148, -0.35190537571907043]
+            LegAngles  = [0.13, -0.09, 0.09, 0.13, -0.09, 0.09]
         elif(LHipPitch>-0.15):
-            LegAngles  = [-0.25, 1, -0.724,-0.25, 1, -0.724]
+            LegAngles  = [-0.15, 0.7, -0.352,-0.15, 0.7, -0.352]
         elif(LHipPitch<=0.15):
-            LegAngles  = [-0.67, 1.65, -0.724,-0.67, 1.65, -0.724]
+            # LegAngles  = [-0.67, 1.65, -0.724,-0.67, 1.65, -0.724]
+            LegAngles  = [-0.05, 1, -0.724,-0.05, 1, -0.724]
         motionProxy.setAngles(LegNames, LegAngles, LegFractionMaxSpeed)
 
-        # angle['LShoulderRoll'] = LShoulderRoll
 
         # if right_wrist.y > right_shoulder.y and not raised:
         #     raised = True
@@ -288,14 +288,15 @@ def naoInit(postureProxy, motionProxy):
     motionProxy.setStiffnesses("Body", 1.0)
     motionProxy.setStiffnesses("Head", 1.0)
     motionProxy.setMotionConfig([["ENABLE_FOOT_CONTACT_PROTECTION", True]])
-    postureProxy.goToPosture("StandInit", 0.5)
+    postureProxy.goToPosture("Stand", 0.5)
+    # postureProxy.goToPosture("StandInit", 0.5)
 
-    motionProxy.wbEnable(True)
+    # motionProxy.wbEnable(True)
 
-    # Example showing how to Constraint Balance Motion.
-    isEnable   = True
-    supportLeg = "Legs"
-    motionProxy.wbEnableBalanceConstraint(isEnable, supportLeg)
+    # # Example showing how to Constraint Balance Motion.
+    # isEnable   = True
+    # supportLeg = "Legs"
+    # motionProxy.wbEnableBalanceConstraint(isEnable, supportLeg)
 
 def naoRest(postureProxy, motionProxy):
     postureProxy.goToPosture("Crouch", 0.2)
@@ -305,6 +306,7 @@ def naoRest(postureProxy, motionProxy):
 if __name__ == '__main__':
     # Initialize nao proxy
     robotIp = "127.0.0.1"
+    # robotIp = "192.168.1.106"
     motionProxy = ALProxy("ALMotion", robotIp, 9559)
     postureProxy = ALProxy("ALRobotPosture", robotIp, 9559)
 
@@ -317,13 +319,13 @@ if __name__ == '__main__':
     # Loop
     while True:
         count+=1
-        if count > 500:
+        if count > 700:
             _kinect.close()
             naoRest(postureProxy, motionProxy)
             exit()
         # print count
 
-        rate(20)
+        rate(30)
         skeleton.frame.visible = skeleton.update()
         analyse_frame(skeleton,raised,motionProxy)
         
