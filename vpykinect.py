@@ -256,17 +256,26 @@ def analyse_frame(skeleton,raised,motionProxy):
         fractionMaxSpeed  = 0.8
         motionProxy.setAngles(names, angles, fractionMaxSpeed)
 
+        # Crouch
         LegNames  = ["LHipPitch","LKneePitch","LAnklePitch","RHipPitch","RKneePitch","RAnklePitch"]
-        LegFractionMaxSpeed  = 0.1
-        if(LHipPitch>0):
-            LegAngles  = [0.13, -0.09, 0.09, 0.13, -0.09, 0.09]
-        elif(LHipPitch>-0.15):
-            LegAngles  = [-0.15, 0.7, -0.352,-0.15, 0.7, -0.352]
-        elif(LHipPitch<=0.15):
-            # LegAngles  = [-0.67, 1.65, -0.724,-0.67, 1.65, -0.724]
-            LegAngles  = [-0.05, 1, -0.724,-0.05, 1, -0.724]
-        motionProxy.setAngles(LegNames, LegAngles, LegFractionMaxSpeed)
-
+        timelist = [0.3 for x in range(6)]
+        global crouchState
+        if(LHipPitch > 0.0):
+            if(crouchState != 1):
+                crouchState = 1
+                LegAngles  = [0.13, -0.09, 0.09, 0.13, -0.09, 0.09]
+                motionProxy.angleInterpolation(LegNames, LegAngles, timelist, True)
+        elif(LHipPitch > -0.15):
+            if(crouchState != 2):
+                crouchState = 2
+                LegAngles  = [-0.15, 0.7, -0.352,-0.15, 0.7, -0.352]
+                motionProxy.angleInterpolation(LegNames, LegAngles, timelist, True)
+        elif(LHipPitch <= -0.25):
+            if(crouchState != 3):
+                crouchState = 3
+                # LegAngles  = [-0.67, 1.65, -0.724,-0.67, 1.65, -0.724]
+                LegAngles  = [-0.05, 1, -0.724,-0.05, 1, -0.724]
+                motionProxy.angleInterpolation(LegNames, LegAngles, timelist, True)
 
         # if right_wrist.y > right_shoulder.y and not raised:
         #     raised = True
@@ -283,6 +292,9 @@ _bone_ids = [[0, 1], [1, 2], [2, 3], [7, 6], [6, 5], [5, 4], [4, 2],
 _kinect = nui.Runtime()
 _kinect.skeleton_engine.enabled = True
 _kinect.camera.elevation_angle = 15
+
+# Initialize crouch state
+crouchState = 1
 
 def naoInit(postureProxy, motionProxy):
     motionProxy.setStiffnesses("Body", 1.0)
@@ -302,6 +314,7 @@ def naoRest(postureProxy, motionProxy):
     postureProxy.goToPosture("Crouch", 0.2)
     motionProxy.setStiffnesses("Body", 0.0)
     motionProxy.setStiffnesses("Head", 0.0)
+
 
 if __name__ == '__main__':
     # Initialize nao proxy
