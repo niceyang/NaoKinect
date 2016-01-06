@@ -253,12 +253,12 @@ def analyse_frame(skeleton,raised,motionProxy):
     # Update Nao
         names  = ["HeadPitch","LShoulderPitch","LShoulderRoll","LElbowYaw","LElbowRoll","RShoulderRoll","RShoulderPitch","RElbowYaw","RElbowRoll"]
         angles  =[HeadPitch,LShoulderPitch,LShoulderRoll,LElbowYaw,LElbowRoll,RShoulderRoll,RShoulderPitch,RElbowYaw,RElbowRoll] #,LHipPitch,RHipPitch
-        fractionMaxSpeed  = 0.8
+        fractionMaxSpeed  = 0.6
         motionProxy.setAngles(names, angles, fractionMaxSpeed)
 
         # Crouch
         LegNames  = ["LHipPitch","LKneePitch","LAnklePitch","RHipPitch","RKneePitch","RAnklePitch"]
-        timelist = [0.3 for x in range(6)]
+        timelist = [0.7 for x in range(6)]
         global crouchState
         if(LHipPitch > 0.0):
             if(crouchState != 1):
@@ -318,8 +318,9 @@ def naoRest(postureProxy, motionProxy):
 
 if __name__ == '__main__':
     # Initialize nao proxy
-    robotIp = "127.0.0.1"
+    # robotIp = "127.0.0.1"
     # robotIp = "192.168.1.106"
+    robotIp = "192.168.1.115"
     motionProxy = ALProxy("ALMotion", robotIp, 9559)
     postureProxy = ALProxy("ALRobotPosture", robotIp, 9559)
 
